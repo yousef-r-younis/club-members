@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Engineering Club Members</title>
+    <title>LIU Engineering Club - Members</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         * {
@@ -40,27 +40,42 @@
             opacity: 0.9;
         }
         
-        .upload-section {
+        .controls {
             background: white;
             border-radius: 12px;
-            padding: 30px;
+            padding: 20px;
             margin-bottom: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        .file-input-wrapper {
             display: flex;
             gap: 15px;
             align-items: center;
             flex-wrap: wrap;
         }
         
-        input[type="file"] {
-            padding: 10px;
-            border: 2px dashed #667eea;
+        .refresh-btn, .export-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
             border-radius: 8px;
-            flex: 1;
-            min-width: 250px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover, .export-btn:hover {
+            background: #5568d3;
+        }
+        
+        .refresh-btn:disabled, .export-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .last-updated {
+            color: #666;
+            font-size: 0.9rem;
+            margin-left: auto;
         }
         
         .stats {
@@ -161,60 +176,56 @@
             top: 0;
         }
         
-        tr {
-            background: #f8f9ff; /* Add a consistent background for all rows */
-        }
-        
         td {
             padding: 12px 15px;
-            border-bottom: 1px solid #e0e0e0; /* Slightly darker for contrast */
-            font-size: 1rem;
-            color: #333;
+            border-bottom: 1px solid #f0f0f0;
         }
         
         tr:hover {
-            background: #e8eaf6; /* Slightly darker on hover */
+            background: #f8f9ff;
         }
         
-        .no-data {
+        .loading {
             text-align: center;
             padding: 40px;
             color: #999;
         }
         
-        .export-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 24px;
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
             border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background 0.3s;
+            margin-bottom: 20px;
         }
         
-        .export-btn:hover {
-            background: #5568d3;
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
         }
         
-        .export-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🔧 Engineering Club Members</h1>
-            <p class="subtitle">Member Dashboard</p>
+            <h1>🔧 LIU Engineering Club</h1>
+            <p class="subtitle">Members Dashboard</p>
         </header>
         
-        <div class="upload-section">
-            <div class="file-input-wrapper">
-                <input type="file" id="csvFile" accept=".csv" />
-                <button class="export-btn" id="exportBtn" disabled>Export Filtered Data</button>
-            </div>
+        <div class="controls">
+            <button class="refresh-btn" id="refreshBtn" onclick="loadData()">🔄 Refresh Data</button>
+            <button class="export-btn" id="exportBtn" onclick="exportData()">📥 Export Filtered Data</button>
+            <div class="last-updated" id="lastUpdated">Loading...</div>
         </div>
         
         <div class="stats" id="stats" style="display: none;">
@@ -255,39 +266,22 @@
         
         <div class="table-container">
             <div id="tableContent">
-                <div class="no-data">
-                    📁 Upload a CSV file to view member data
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading member data...</p>
                 </div>
             </div>
         </div>
     </div>
     
     <script>
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQmzTdHMLjcEVNy4ILeHMwashZGXeJTeN7timB_lNw_7X82gx1pBFIBnwf0tXJv5RQYweosNnXyvPVo/pub?gid=1345408384&single=true&output=csv';
+        
         let allData = [];
         let filteredData = [];
         
         // Columns that should split comma-separated values
-        const multiValueColumns = ['interests', 'interest', 'specific areas of interest', 'areas of interest', 'skills', 'hobbies'];
-        
-        document.getElementById('csvFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        allData = results.data;
-                        filteredData = allData;
-                        displayData(allData);
-                        populateFilters();
-                        updateStats();
-                        document.getElementById('stats').style.display = 'grid';
-                        document.getElementById('filters').style.display = 'block';
-                        document.getElementById('exportBtn').disabled = false;
-                    }
-                });
-            }
-        });
+        const multiValueColumns = ['interests', 'interest', 'specific areas of interest', 'areas of interest', 'skills', 'hobbies', 'what interests you most'];
         
         function isMultiValueColumn(columnName) {
             const normalized = columnName.toLowerCase().trim();
@@ -308,9 +302,46 @@
             return value;
         }
         
+        function loadData() {
+            document.getElementById('refreshBtn').disabled = true;
+            document.getElementById('tableContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading member data...</p></div>';
+            
+            Papa.parse(CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        showError('Error loading data. Please try again.');
+                        console.error(results.errors);
+                        return;
+                    }
+                    
+                    allData = results.data;
+                    filteredData = allData;
+                    displayData(allData);
+                    populateFilters();
+                    updateStats();
+                    document.getElementById('stats').style.display = 'grid';
+                    document.getElementById('filters').style.display = 'block';
+                    document.getElementById('refreshBtn').disabled = false;
+                    document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleString();
+                },
+                error: function(error) {
+                    showError('Failed to load data. Please check your connection and try again.');
+                    console.error(error);
+                    document.getElementById('refreshBtn').disabled = false;
+                }
+            });
+        }
+        
+        function showError(message) {
+            document.getElementById('tableContent').innerHTML = `<div class="error">${message}</div>`;
+        }
+        
         function displayData(data) {
             if (data.length === 0) {
-                document.getElementById('tableContent').innerHTML = '<div class="no-data">No data to display</div>';
+                document.getElementById('tableContent').innerHTML = '<div class="loading">No members yet. Share the signup form to get started!</div>';
                 return;
             }
             
@@ -336,30 +367,42 @@
         }
         
         function populateFilters() {
-            const majors = [...new Set(allData.map(row => row.Major || row.major).filter(Boolean))];
-            const years = [...new Set(allData.map(row => row.Year || row.year).filter(Boolean))];
+            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
+            const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
             
-            const majorSelect = document.getElementById('majorFilter');
-            majorSelect.innerHTML = '<option value="">All Majors</option>';
-            majors.sort().forEach(major => {
-                majorSelect.innerHTML += `<option value="${major}">${major}</option>`;
-            });
+            if (majorKey) {
+                const majors = [...new Set(allData.map(row => row[majorKey]).filter(Boolean))];
+                const majorSelect = document.getElementById('majorFilter');
+                majorSelect.innerHTML = '<option value="">All Majors</option>';
+                majors.sort().forEach(major => {
+                    majorSelect.innerHTML += `<option value="${major}">${major}</option>`;
+                });
+            }
             
-            const yearSelect = document.getElementById('yearFilter');
-            yearSelect.innerHTML = '<option value="">All Years</option>';
-            years.sort().forEach(year => {
-                yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
-            });
+            if (yearKey) {
+                const years = [...new Set(allData.map(row => row[yearKey]).filter(Boolean))];
+                const yearSelect = document.getElementById('yearFilter');
+                yearSelect.innerHTML = '<option value="">All Years</option>';
+                years.sort().forEach(year => {
+                    yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+                });
+            }
         }
         
         function updateStats() {
             document.getElementById('totalMembers').textContent = allData.length;
             
-            const majors = new Set(allData.map(row => row.Major || row.major).filter(Boolean));
-            document.getElementById('totalMajors').textContent = majors.size;
+            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
+            if (majorKey) {
+                const majors = new Set(allData.map(row => row[majorKey]).filter(Boolean));
+                document.getElementById('totalMajors').textContent = majors.size;
+            }
             
-            const years = new Set(allData.map(row => row.Year || row.year).filter(Boolean));
-            document.getElementById('totalYears').textContent = years.size;
+            const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
+            if (yearKey) {
+                const years = new Set(allData.map(row => row[yearKey]).filter(Boolean));
+                document.getElementById('totalYears').textContent = years.size;
+            }
         }
         
         function applyFilters() {
@@ -367,12 +410,15 @@
             const majorFilter = document.getElementById('majorFilter').value;
             const yearFilter = document.getElementById('yearFilter').value;
             
+            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
+            const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
+            
             filteredData = allData.filter(row => {
                 const matchesSearch = !searchTerm || Object.values(row).some(val => 
                     String(val).toLowerCase().includes(searchTerm)
                 );
-                const matchesMajor = !majorFilter || (row.Major || row.major) === majorFilter;
-                const matchesYear = !yearFilter || (row.Year || row.year) === yearFilter;
+                const matchesMajor = !majorFilter || (majorKey && row[majorKey] === majorFilter);
+                const matchesYear = !yearFilter || (yearKey && row[yearKey] === yearFilter);
                 
                 return matchesSearch && matchesMajor && matchesYear;
             });
@@ -380,20 +426,26 @@
             displayData(filteredData);
         }
         
-        document.getElementById('searchInput').addEventListener('input', applyFilters);
-        document.getElementById('majorFilter').addEventListener('change', applyFilters);
-        document.getElementById('yearFilter').addEventListener('change', applyFilters);
-        
-        document.getElementById('exportBtn').addEventListener('click', function() {
+        function exportData() {
             const csv = Papa.unparse(filteredData);
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'filtered_members.csv';
+            a.download = 'liu_engineering_club_members.csv';
             a.click();
             URL.revokeObjectURL(url);
-        });
+        }
+        
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+        document.getElementById('majorFilter').addEventListener('change', applyFilters);
+        document.getElementById('yearFilter').addEventListener('change', applyFilters);
+        
+        // Load data automatically when page loads
+        loadData();
+        
+        // Auto-refresh every 5 minutes
+        setInterval(loadData, 5 * 60 * 1000);
     </script>
 </body>
 </html>
