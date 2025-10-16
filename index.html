@@ -261,6 +261,12 @@
                         <option value="">All Years</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label for="campusFilter">Filter by Campus</label>
+                    <select id="campusFilter">
+                        <option value="">All Campuses</option>
+                    </select>
+                </div>
             </div>
         </div>
         
@@ -281,7 +287,10 @@
         let filteredData = [];
         
         // Columns that should split comma-separated values
-        const multiValueColumns = ['interests', 'interest', 'specific areas of interest', 'areas of interest', 'skills', 'hobbies', 'what interests you most'];
+        const multiValueColumns = [
+            'interests', 'interest', 'specific areas of interest', 
+            'areas of interest', 'skills', 'hobbies', 'what interests you most'
+        ];
         
         function isMultiValueColumn(columnName) {
             const normalized = columnName.toLowerCase().trim();
@@ -291,12 +300,12 @@
         function formatCellValue(value, columnName) {
             if (!value) return '-';
             
-            // Check if this column should have comma-separated values displayed as badges
-            if (isMultiValueColumn(columnName) && value.includes(',')) {
+            // Check if this column should have comma-separated values displayed as list
+            if (isMultiValueColumn(columnName) || value.includes(',')) {
                 const values = value.split(',').map(v => v.trim()).filter(v => v);
-                return '<div class="multi-value">' + 
-                    values.map(v => `<span class="value-badge">${v}</span>`).join('') + 
-                    '</div>';
+                return '<ul style="list-style: none; margin: 0; padding: 0;">' + 
+                    values.map(v => `<li class="value-badge">${v}</li>`).join('') + 
+                    '</ul>';
             }
             
             return value;
@@ -367,24 +376,58 @@
         }
         
         function populateFilters() {
-            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
+            // Handle both undergraduate and graduate majors
+            const undergradMajorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('undergrad') && key.toLowerCase().includes('major'));
+            const gradMajorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('graduate') && key.toLowerCase().includes('major'));
             const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
+            const campusKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('campus'));
             
-            if (majorKey) {
-                const majors = [...new Set(allData.map(row => row[majorKey]).filter(Boolean))];
-                const majorSelect = document.getElementById('majorFilter');
-                majorSelect.innerHTML = '<option value="">All Majors</option>';
-                majors.sort().forEach(major => {
-                    majorSelect.innerHTML += `<option value="${major}">${major}</option>`;
+            // Populate majors filter
+            const majorSelect = document.getElementById('majorFilter');
+            majorSelect.innerHTML = '<option value="">All Majors</option>';
+            
+            const allMajors = new Set();
+            
+            // Add undergraduate majors
+            if (undergradMajorKey) {
+                allData.forEach(row => {
+                    if (row[undergradMajorKey]) {
+                        allMajors.add(`Undergrad: ${row[undergradMajorKey]}`);
+                    }
                 });
             }
             
+            // Add graduate majors
+            if (gradMajorKey) {
+                allData.forEach(row => {
+                    if (row[gradMajorKey]) {
+                        allMajors.add(`Graduate: ${row[gradMajorKey]}`);
+                    }
+                });
+            }
+            
+            // Add sorted majors to select
+            [...allMajors].sort().forEach(major => {
+                majorSelect.innerHTML += `<option value="${major}">${major}</option>`;
+            });
+            
+            // Populate year filter
             if (yearKey) {
                 const years = [...new Set(allData.map(row => row[yearKey]).filter(Boolean))];
                 const yearSelect = document.getElementById('yearFilter');
                 yearSelect.innerHTML = '<option value="">All Years</option>';
                 years.sort().forEach(year => {
                     yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+                });
+            }
+            
+            // Populate campus filter
+            if (campusKey) {
+                const campuses = [...new Set(allData.map(row => row[campusKey]).filter(Boolean))];
+                const campusSelect = document.getElementById('campusFilter');
+                campusSelect.innerHTML = '<option value="">All Campuses</option>';
+                campuses.sort().forEach(campus => {
+                    campusSelect.innerHTML += `<option value="${campus}">${campus}</option>`;
                 });
             }
         }
@@ -409,18 +452,26 @@
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const majorFilter = document.getElementById('majorFilter').value;
             const yearFilter = document.getElementById('yearFilter').value;
+            const campusFilter = document.getElementById('campusFilter').value;
             
-            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
+            const undergradMajorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('undergrad') && key.toLowerCase().includes('major'));
+            const gradMajorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('graduate') && key.toLowerCase().includes('major'));
             const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
+            const campusKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('campus'));
             
             filteredData = allData.filter(row => {
                 const matchesSearch = !searchTerm || Object.values(row).some(val => 
                     String(val).toLowerCase().includes(searchTerm)
                 );
-                const matchesMajor = !majorFilter || (majorKey && row[majorKey] === majorFilter);
-                const matchesYear = !yearFilter || (yearKey && row[yearKey] === yearFilter);
                 
-                return matchesSearch && matchesMajor && matchesYear;
+                const matchesMajor = !majorFilter || 
+                    (majorFilter.startsWith('Undergrad:') && undergradMajorKey && row[undergradMajorKey] === majorFilter.replace('Undergrad: ', '')) ||
+                    (majorFilter.startsWith('Graduate:') && gradMajorKey && row[gradMajorKey] === majorFilter.replace('Graduate: ', ''));
+                    
+                const matchesYear = !yearFilter || (yearKey && row[yearKey] === yearFilter);
+                const matchesCampus = !campusFilter || (campusKey && row[campusKey] === campusFilter);
+                
+                return matchesSearch && matchesMajor && matchesYear && matchesCampus;
             });
             
             displayData(filteredData);
@@ -440,6 +491,7 @@
         document.getElementById('searchInput').addEventListener('input', applyFilters);
         document.getElementById('majorFilter').addEventListener('change', applyFilters);
         document.getElementById('yearFilter').addEventListener('change', applyFilters);
+        document.getElementById('campusFilter').addEventListener('change', applyFilters);
         
         // Load data automatically when page loads
         loadData();
