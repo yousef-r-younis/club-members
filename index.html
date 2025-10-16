@@ -435,11 +435,27 @@
         function updateStats() {
             document.getElementById('totalMembers').textContent = allData.length;
             
-            const majorKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('major'));
-            if (majorKey) {
-                const majors = new Set(allData.map(row => row[majorKey]).filter(Boolean));
-                document.getElementById('totalMajors').textContent = majors.size;
+            // Find both major keys
+            const undergradMajorKey = Object.keys(allData[0]).find(key => 
+                key.toLowerCase().includes('undergrad') && key.toLowerCase().includes('major')
+            );
+            const gradMajorKey = Object.keys(allData[0]).find(key => 
+                key.toLowerCase().includes('graduate') && key.toLowerCase().includes('major')
+            );
+
+            // Count unique majors from both undergrad and grad
+            const allMajors = new Set();
+            if (undergradMajorKey) {
+                allData.forEach(row => {
+                    if (row[undergradMajorKey]) allMajors.add(`Undergrad: ${row[undergradMajorKey]}`);
+                });
             }
+            if (gradMajorKey) {
+                allData.forEach(row => {
+                    if (row[gradMajorKey]) allMajors.add(`Graduate: ${row[gradMajorKey]}`);
+                });
+            }
+            document.getElementById('totalMajors').textContent = allMajors.size;
             
             const yearKey = Object.keys(allData[0]).find(key => key.toLowerCase().includes('year'));
             if (yearKey) {
