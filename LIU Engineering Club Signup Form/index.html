@@ -6,6 +6,15 @@
     <title>LIU Engineering Club - Members</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
+        /* Add CSS variables for the orange theme at the top of your style section */
+        :root {
+            --primary-color: #FF6B35;  /* Main orange */
+            --secondary-color: #FF9B42; /* Light orange */
+            --accent-color: #FFE3D8;   /* Very light orange */
+            --text-color: #2B2D42;     /* Dark gray for text */
+            --error-color: #FF4B2B;    /* Error red */
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -14,7 +23,7 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -52,8 +61,8 @@
             flex-wrap: wrap;
         }
         
-        .refresh-btn, .export-btn {
-            background: #667eea;
+        .refresh-btn, .export-btn, .sort-btn {
+            background: var(--primary-color);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -63,11 +72,11 @@
             transition: background 0.3s;
         }
         
-        .refresh-btn:hover, .export-btn:hover {
-            background: #5568d3;
+        .refresh-btn:hover, .export-btn:hover, .sort-btn:hover {
+            background: var(--secondary-color);
         }
         
-        .refresh-btn:disabled, .export-btn:disabled {
+        .refresh-btn:disabled, .export-btn:disabled, .sort-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
@@ -96,7 +105,7 @@
         .stat-number {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #667eea;
+            color: var(--primary-color);
         }
         
         .stat-label {
@@ -137,8 +146,8 @@
         }
         
         .value-badge {
-            background: #e8eaf6;
-            color: #667eea;
+            background: var(--accent-color);
+            color: var(--primary-color);
             padding: 4px 10px;
             border-radius: 12px;
             font-size: 0.9rem;
@@ -156,33 +165,47 @@
         .table-container {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 0; /* Remove padding to prevent gap */
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+            position: relative;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
+            margin: 0; /* Remove margin */
+        }
+        
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--primary-color);
         }
         
         th {
-            background: #667eea;
+            background: var(--primary-color);
             color: white;
             padding: 15px;
             text-align: left;
             font-weight: 600;
-            position: sticky;
-            top: 0;
+        }
+        
+        tbody {
+            padding: 20px; /* Add padding to the body instead */
         }
         
         td {
             padding: 12px 15px;
             border-bottom: 1px solid #f0f0f0;
+            background: white; /* Add background to prevent transparency */
         }
         
         tr:hover {
-            background: #f8f9ff;
+            background: var(--accent-color);
         }
         
         .loading {
@@ -192,8 +215,8 @@
         }
         
         .error {
-            background: #fee;
-            color: #c33;
+            background: #fff1f0;
+            color: var(--error-color);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -201,7 +224,7 @@
         
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid var(--primary-color);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -212,6 +235,27 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        select:focus, input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        
+        /* Add this to your style section */
+        .sort-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .sort-btn:hover {
+            background: var(--secondary-color);
         }
     </style>
 </head>
@@ -225,6 +269,7 @@
         <div class="controls">
             <button class="refresh-btn" id="refreshBtn" onclick="loadData()">🔄 Refresh Data</button>
             <button class="export-btn" id="exportBtn" onclick="exportData()">📥 Export Filtered Data</button>
+            <button class="sort-btn" id="sortBtn" onclick="toggleSort()">🔃 Reverse Order</button>
             <div class="last-updated" id="lastUpdated">Loading...</div>
         </div>
         
@@ -285,6 +330,8 @@
         
         let allData = [];
         let filteredData = [];
+        let sortOrderAsc = true; // Ascending order by default
+        let isReversed = false;
         
         // Columns that should split comma-separated values
         const multiValueColumns = [
@@ -348,6 +395,12 @@
             document.getElementById('tableContent').innerHTML = `<div class="error">${message}</div>`;
         }
         
+        function toggleSort() {
+            isReversed = !isReversed;
+            displayData(filteredData);
+        }
+        
+        // Update the displayData function to handle sorting
         function displayData(data) {
             if (data.length === 0) {
                 document.getElementById('tableContent').innerHTML = '<div class="loading">No members yet. Share the signup form to get started!</div>';
@@ -363,7 +416,15 @@
             
             tableHTML += '</tr></thead><tbody>';
             
-            data.forEach(row => {
+            // Create a copy of the data array to avoid modifying the original
+            const sortedData = [...data];
+            
+            // Reverse the array if isReversed is true
+            if (isReversed) {
+                sortedData.reverse();
+            }
+            
+            sortedData.forEach(row => {
                 tableHTML += '<tr>';
                 headers.forEach(header => {
                     tableHTML += `<td>${formatCellValue(row[header], header)}</td>`;
