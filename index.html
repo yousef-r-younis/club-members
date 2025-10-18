@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIU Engineering Club - Members</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         /* Add CSS variables for the orange theme at the top of your style section */
         :root {
@@ -325,8 +324,9 @@
         </div>
     </div>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script>
-        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQmzTdHMLjcEVNy4ILeHMwashZGXeJTeN7timB_lNw_7X82gx1pBFIBnwf0tXJv5RQYweosNnXyvPVo/pub?gid=1345408384&single=true&output=csv';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzg1UrZYzyzXLKre61M6p1ZxvhgqcO81BJJqR9AcH5P6uvdUAQ6hxzFJ9FLkgYfYURPiw/exec';
         
         let allData = [];
         let filteredData = [];
@@ -345,50 +345,86 @@
         }
         
         function formatCellValue(value, columnName) {
-            if (!value) return '-';
+            // Handle null, undefined, or empty values
+            if (value === null || value === undefined || value === '') return '-';
             
-            // Check if this column should have comma-separated values displayed as list
-            if (isMultiValueColumn(columnName) || value.includes(',')) {
-                const values = value.split(',').map(v => v.trim()).filter(v => v);
-                return '<ul style="list-style: none; margin: 0; padding: 0;">' + 
-                    values.map(v => `<li class="value-badge">${v}</li>`).join('') + 
-                    '</ul>';
+            try {
+                // Check if value looks like an ISO date string
+                if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+                    const date = new Date(value);
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    }
+                }
+
+                // Convert to string safely
+                const stringValue = (typeof value === 'object') ? JSON.stringify(value) : String(value);
+                if (!stringValue || !stringValue.trim()) return '-';
+                
+                // Check if this column should have comma-separated values displayed as list
+                if (isMultiValueColumn(columnName) || (typeof stringValue === 'string' && stringValue.includes(','))) {
+                    const values = stringValue.split(',').map(v => v.trim()).filter(v => v);
+                    if (values.length === 0) return '-';
+                    return '<ul style="list-style: none; margin: 0; padding: 0;">' + 
+                        values.map(v => `<li class="value-badge">${escapeHtml(v)}</li>`).join('') + 
+                        '</ul>';
+                }
+                
+                return escapeHtml(stringValue);
+            } catch (error) {
+                console.error('Error formatting cell value:', error);
+                return '-';
             }
-            
-            return value;
         }
         
-        function loadData() {
+        // Helper function to escape HTML special characters
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+/*************  ✨ Windsurf Command ⭐  *************/
+/**
+ * Loads member data from the API and updates the table, filters, and stats.
+ * Shows a loading animation while data is being loaded.
+ * If data loading fails, shows an error message and logs the error to the console.
+ * @throws {Error} If data loading fails.
+/*******  6f43abab-cd69-4531-84eb-d7105c72d801  *******/
+        async function loadData() {
             document.getElementById('refreshBtn').disabled = true;
             document.getElementById('tableContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading member data...</p></div>';
-            
-            Papa.parse(CSV_URL, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0) {
-                        showError('Error loading data. Please try again.');
-                        console.error(results.errors);
-                        return;
-                    }
-                    
-                    allData = results.data;
-                    filteredData = allData;
-                    displayData(allData);
-                    populateFilters();
-                    updateStats();
-                    document.getElementById('stats').style.display = 'grid';
-                    document.getElementById('filters').style.display = 'block';
-                    document.getElementById('refreshBtn').disabled = false;
-                    document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleString();
-                },
-                error: function(error) {
-                    showError('Failed to load data. Please check your connection and try again.');
-                    console.error(error);
-                    document.getElementById('refreshBtn').disabled = false;
-                }
-            });
+
+            try {
+                const res = await fetch(API_URL);
+                if (!res.ok) throw new Error('Failed to load data (Status ' + res.status + ')');
+                
+                const data = await res.json();
+                if (!data || data.length === 0) throw new Error('No data available');
+
+                allData = data;
+                filteredData = data;
+                displayData(data);
+                populateFilters();
+                updateStats();
+                document.getElementById('stats').style.display = 'grid';
+                document.getElementById('filters').style.display = 'block';
+                document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleString();
+            } catch (error) {
+                showError('Failed to load data: ' + error.message);
+                console.error('Data loading error:', error);
+            } finally {
+                document.getElementById('refreshBtn').disabled = false;
+            }
         }
         
         function showError(message) {
@@ -554,15 +590,36 @@
             displayData(filteredData);
         }
         
+        function arrayToCSV(data) {
+            if (!data || !data.length) return '';
+            const headers = Object.keys(data[0]);
+            const rows = data.map(row => 
+                headers.map(header => {
+                    let cell = row[header] || '';
+                    // Quote cell if it contains comma or newline
+                    if (cell.toString().includes(',') || cell.toString().includes('\n')) {
+                        cell = `"${cell.toString().replace(/"/g, '""')}"`;
+                    }
+                    return cell;
+                }).join(',')
+            );
+            return [headers.join(','), ...rows].join('\n');
+        }
+
         function exportData() {
-            const csv = Papa.unparse(filteredData);
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'liu_engineering_club_members.csv';
-            a.click();
-            URL.revokeObjectURL(url);
+            // Convert the filtered data to CSV
+            const csv = arrayToCSV(filteredData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const date = new Date().toLocaleDateString().replace(/\//g, '-');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `liu_engineering_club_members_${date}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
         }
         
         document.getElementById('searchInput').addEventListener('input', applyFilters);
