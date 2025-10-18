@@ -36,11 +36,31 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-container {
+            max-width: 200px;
+            margin: 0 auto;
+        }
+
+        .logo-image {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         
         h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
         }
         
         .subtitle {
@@ -261,6 +281,9 @@
 <body>
     <div class="container">
         <header>
+            <div class="logo-container">
+                <img src="logo.jpg" alt="LIU Engineering Club Logo" class="logo-image">
+            </div>
             <h1>🔧 LIU Engineering Club</h1>
             <p class="subtitle">Members Dashboard</p>
         </header>
@@ -399,6 +422,7 @@
  * Shows a loading animation while data is being loaded.
  * If data loading fails, shows an error message and logs the error to the console.
  * @throws {Error} If data loading fails.
+
 /*******  6f43abab-cd69-4531-84eb-d7105c72d801  *******/
         async function loadData() {
             document.getElementById('refreshBtn').disabled = true;
