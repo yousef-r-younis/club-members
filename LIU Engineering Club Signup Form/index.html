@@ -33,6 +33,30 @@
             margin: 0 auto;
         }
         
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            color: var(--primary-color);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: var(--accent-color);
+            transform: translateX(-5px);
+        }
+
         header {
             text-align: center;
             color: white;
@@ -41,6 +65,7 @@
             flex-direction: column;
             align-items: center;
             gap: 20px;
+            position: relative;
         }
 
         .logo-container {
@@ -282,6 +307,9 @@
 <body>
     <div class="container">
         <header>
+            <a href="https://yousef-r-younis.github.io/club-members/LIU%20Engineering%20Club%20Signup%20Form/index.html" class="back-button">
+                ← Back to Home
+            </a>
             <div class="logo-container">
                 <img src="logo.jpg" alt="LIU Engineering Club Logo" class="logo-image">
             </div>
